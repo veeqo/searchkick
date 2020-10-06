@@ -11,8 +11,8 @@ module Searchkick
         settings = options[:settings] || {}
         mappings = options[:mappings]
       else
-        below60 = Searchkick.server_below?("6.0.0")
-        below62 = Searchkick.server_below?("6.2.0")
+        below60 = client.server_below?("6.0.0")
+        below62 = client.server_below?("6.2.0")
 
         default_type = "text"
         default_analyzer = :searchkick_index

@@ -17,7 +17,7 @@ module Searchkick
     end
 
     def delete
-      if !Searchkick.server_below?("6.0.0") && alias_exists?
+      if !client.server_below?("6.0.0") && alias_exists?
         # can't call delete directly on aliases in ES 6
         indices = client.indices.get_alias(name: name).keys
         client.indices.delete index: indices
@@ -28,6 +28,22 @@ module Searchkick
 
     def exists?
       client.indices.exists index: name
+    end
+
+    def routing_key
+      @routing_key ||= client.server_below?("6.0.0") ? :_routing : :routing
+    end
+
+    def client_name
+      options.fetch(:client_name, :default)
+    end
+
+    def client
+      Searchkick.clients.fetch(client_name)
+    end
+
+    def client_host
+      client.host
     end
 
     def refresh
@@ -118,7 +134,7 @@ module Searchkick
     def clean_indices
       indices = all_indices(unaliased: true)
       indices.each do |index|
-        Searchkick::Index.new(index).delete
+        Searchkick::Index.new(index, options.slice(:client_name)).delete
       end
       indices
     end
@@ -251,10 +267,6 @@ module Searchkick
 
     protected
 
-    def client
-      Searchkick.client
-    end
-
     def bulk_indexer
       @bulk_indexer ||= BulkIndexer.new(self)
     end
@@ -306,7 +318,7 @@ module Searchkick
           puts "Jobs queued. Waiting..."
           loop do
             sleep 3
-            status = Searchkick.reindex_status(index.name)
+            status = Searchkick.reindex_status(index.name, options.slice(:client_name))
             break if status[:completed]
             puts "Batches left: #{status[:batches_left]}"
           end

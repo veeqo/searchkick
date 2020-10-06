@@ -95,8 +95,7 @@ module Searchkick
       type = query[:type]
       index = query[:index].is_a?(Array) ? query[:index].join(",") : query[:index]
 
-      # no easy way to tell which host the client will use
-      host = Searchkick.client.transport.hosts.first
+      host = client.host
       credentials = host[:user] || host[:password] ? "#{host[:user]}:#{host[:password]}@" : nil
       "curl #{host[:protocol]}://#{credentials}#{host[:host]}:#{host[:port]}/#{CGI.escape(index)}#{type ? "/#{type.map { |t| CGI.escape(t) }.join(',')}" : ''}/_search?pretty -H 'Content-Type: application/json' -d '#{query[:body].to_json}'"
     end
@@ -124,7 +123,7 @@ module Searchkick
         require "pp"
 
         puts "Searchkick Version: #{Searchkick::VERSION}"
-        puts "Elasticsearch Version: #{Searchkick.server_version}"
+        puts "Elasticsearch Version: #{client.server_version}"
         puts
 
         puts "Model Searchkick Options"
@@ -205,7 +204,7 @@ module Searchkick
     end
 
     def execute_search
-      Searchkick.client.search(params)
+      client.search(params)
     end
 
     def prepare
@@ -667,7 +666,7 @@ module Searchkick
         indices_boost = options[:indices_boost].each_with_object({}) do |(key, boost), memo|
           index = key.respond_to?(:searchkick_index) ? key.searchkick_index.name : key
           # try to use index explicitly instead of alias: https://github.com/elasticsearch/elasticsearch/issues/4756
-          index_by_alias = Searchkick.client.indices.get_alias(index: index).keys.first
+          index_by_alias = client.indices.get_alias(index: index).keys.first
           memo[index_by_alias || index] = boost
         end
       else
@@ -1022,15 +1021,19 @@ module Searchkick
     end
 
     def below52?
-      Searchkick.server_below?("5.2.0")
+      client.server_below?("5.2.0")
     end
 
     def below60?
-      Searchkick.server_below?("6.0.0")
+      client.server_below?("6.0.0")
     end
 
     def below61?
-      Searchkick.server_below?("6.1.0")
+      client.server_below?("6.1.0")
+    end
+
+    def client
+      @client ||= (searchkick_index || Searchkick).client
     end
   end
 end

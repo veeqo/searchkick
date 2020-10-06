@@ -14,7 +14,7 @@ Searchkick.client.transport.logger = $logger
 Searchkick.search_timeout = 5
 Searchkick.index_suffix = ENV["TEST_ENV_NUMBER"] # for parallel tests
 
-puts "Running against Elasticsearch #{Searchkick.server_version}"
+puts "Running against Elasticsearch #{Searchkick.client.server_version}"
 
 if defined?(Redis)
   if defined?(ConnectionPool)

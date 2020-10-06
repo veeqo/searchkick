@@ -4,9 +4,17 @@ require "active_support/core_ext/module/attr_internal"
 module Searchkick
   module QueryWithInstrumentation
     def execute_search
-      name = searchkick_klass ? "#{searchkick_klass.name} Search" : "Search"
+      if searchkick_klass
+        name = "#{searchkick_klass.name} Search"
+        host = searchkick_index.client_host
+      else
+        name = "Search"
+        host = Searchkick.client.host
+      end
+
       event = {
         name: name,
+        host: host,
         query: params
       }
       ActiveSupport::Notifications.instrument("search.searchkick", event) do
@@ -19,6 +27,7 @@ module Searchkick
     def store(record)
       event = {
         name: "#{record.searchkick_klass.name} Store",
+        host: client_host,
         id: search_id(record)
       }
       if Searchkick.callbacks_value == :bulk
@@ -34,6 +43,7 @@ module Searchkick
       name = record && record.searchkick_klass ? "#{record.searchkick_klass.name} Remove" : "Remove"
       event = {
         name: name,
+        host: client_host,
         id: search_id(record)
       }
       if Searchkick.callbacks_value == :bulk
@@ -48,6 +58,7 @@ module Searchkick
     def update_record(record, method_name)
       event = {
         name: "#{record.searchkick_klass.name} Update",
+        host: client_host,
         id: search_id(record)
       }
       if Searchkick.callbacks_value == :bulk
@@ -63,6 +74,7 @@ module Searchkick
       if records.any?
         event = {
           name: "#{records.first.searchkick_klass.name} Import",
+          host: client_host,
           count: records.size
         }
         event[:id] = search_id(records.first) if records.size == 1
@@ -81,6 +93,7 @@ module Searchkick
       if records.any?
         event = {
           name: "#{records.first.searchkick_klass.name} Update",
+          host: client_host,
           count: records.size
         }
         event[:id] = search_id(records.first) if records.size == 1
@@ -98,6 +111,7 @@ module Searchkick
       if records.any?
         event = {
           name: "#{records.first.searchkick_klass.name} Delete",
+          host: client_host,
           count: records.size
         }
         event[:id] = search_id(records.first) if records.size == 1
@@ -113,10 +127,11 @@ module Searchkick
   end
 
   module IndexerWithInstrumentation
-    def perform
+    def perform_per_client(client, _items)
       if Searchkick.callbacks_value == :bulk
         event = {
           name: "Bulk",
+          host: client.host,
           count: queued_items.size
         }
         ActiveSupport::Notifications.instrument("request.searchkick", event) do
@@ -165,8 +180,7 @@ module Searchkick
       type = payload[:query][:type]
       index = payload[:query][:index].is_a?(Array) ? payload[:query][:index].join(",") : payload[:query][:index]
 
-      # no easy way to tell which host the client will use
-      host = Searchkick.client.transport.hosts.first
+      host = payload.fetch(:host)
       debug "  #{color(name, YELLOW, true)}  curl #{host[:protocol]}://#{host[:host]}:#{host[:port]}/#{CGI.escape(index)}#{type ? "/#{type.map { |t| CGI.escape(t) }.join(',')}" : ''}/_search?pretty -H 'Content-Type: application/json' -d '#{payload[:query][:body].to_json}'"
     end
 
@@ -177,7 +191,7 @@ module Searchkick
       payload = event.payload
       name = "#{payload[:name]} (#{event.duration.round(1)}ms)"
 
-      debug "  #{color(name, YELLOW, true)}  #{payload.except(:name).to_json}"
+      debug "  #{color(name, YELLOW, true)}  #{payload.except(:name, :host).to_json}"
     end
 
     def multi_search(event)
@@ -187,8 +201,7 @@ module Searchkick
       payload = event.payload
       name = "#{payload[:name]} (#{event.duration.round(1)}ms)"
 
-      # no easy way to tell which host the client will use
-      host = Searchkick.client.transport.hosts.first
+      host = payload[:host]
       debug "  #{color(name, YELLOW, true)}  curl #{host[:protocol]}://#{host[:host]}:#{host[:port]}/_msearch?pretty -H 'Content-Type: application/json' -d '#{payload[:body]}'"
     end
   end

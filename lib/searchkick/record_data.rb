@@ -12,17 +12,17 @@ module Searchkick
     def index_data
       data = record_data
       data[:data] = search_data
-      {index: data}
+      {index: data, client_name: index.client_name}
     end
 
     def update_data(method_name)
       data = record_data
       data[:data] = {doc: search_data(method_name)}
-      {update: data}
+      {update: data, client_name: index.client_name}
     end
 
     def delete_data
-      {delete: record_data}
+      {delete: record_data, client_name: index.client_name}
     end
 
     def search_id
@@ -34,18 +34,13 @@ module Searchkick
       index.klass_document_type(record.class, ignore_type)
     end
 
-    # memoize
-    def self.routing_key
-      @routing_key ||= Searchkick.server_below?("6.0.0") ? :_routing : :routing
-    end
-
     def record_data
       data = {
         _index: index.name,
         _id: search_id,
         _type: document_type
       }
-      data[self.class.routing_key] = record.search_routing if record.respond_to?(:search_routing)
+      data[self.index.routing_key] = record.search_routing if record.respond_to?(:search_routing)
       data
     end
 
