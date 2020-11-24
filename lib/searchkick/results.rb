@@ -227,7 +227,7 @@ module Searchkick
 
         begin
           # TODO Active Support notifications for this scroll call
-          Searchkick::Results.new(@klass, Searchkick.client.scroll(params), @options)
+          Searchkick::Results.new(@klass, index_client.scroll(params), @options)
         rescue Elasticsearch::Transport::Transport::Errors::NotFound => e
           if e.class.to_s =~ /NotFound/ && e.message =~ /search_context_missing_exception/i
             raise Searchkick::Error, "Scroll id has expired"
@@ -297,6 +297,10 @@ module Searchkick
       else
         {}
       end
+    end
+
+    def index_client
+      klass.search_index.client
     end
   end
 end
